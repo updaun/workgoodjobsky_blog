@@ -1,31 +1,32 @@
 #!/usr/bin/env python3
 """
-비용 없이 이미지 + gTTS 나레이션 + 자막 + (선택) 배경음악으로 릴스 MP4를 만듭니다.
+비용 없이 이미지 + edge-tts 나레이션 + (선택) 자막·배경음악으로 릴스 MP4를 만듭니다.
+기본은 자막 없음(슬라이드 + 보이스만).
 
-필요: Python 3.10+, ffmpeg (시스템), 한글 폰트(자막, 없으면 --font)
+필요: Python 3.10+, ffmpeg, 한글 폰트 권장(하단 고정 문구·자막에 사용).
+숫자·해상도 기본값은 `scripts/reel_defaults.py` 에서 한 번에 바꿀 수 있습니다.
 
 설치:
   pip install -r scripts/requirements-reel.txt
-  sudo apt install ffmpeg   # Ubuntu / WSL
+  sudo apt install ffmpeg
 
 사용 예 (저장소 루트):
 
-  # 단일 사진 + 나레이션
+  # 슬라이드 + 나레이션만 (자막 없음, 기본)
   python scripts/make_reel.py create \\
     --script-file instagram_reels/260513_heygen.txt \\
-    --background-image data/260513_순천만/photo.jpg \\
-    --music assets/music/ambient.mp3 \\
-    --output output/reels/260513.mp4
-
-  # 여러 장 (파일명 순). 스크립트는 --- 로 구간 나눔 (HeyGen 과 동일)
-  python scripts/make_reel.py create \\
-    --script-file ./multi_scene.txt \\
     --scene-dir data/260513_순천만 \\
-    --music assets/music/ambient.mp3 \\
-    --output output/reels/260513_multi.mp4
+    --output output/reels/260513_slides.mp4
 
-배경음악: 저작권 없는 트랙만 사용하세요 (Pixabay, YouTube Audio Library 등).
-  `assets/music/` 에 mp3 를 두고 --music 으로 지정합니다.
+  # 자막 켜기
+  python scripts/make_reel.py create ... --subtitle --font /path/to/NanumGothic.ttf
+
+  # 자막·푸터만 빠르게 PNG 확인 (TTS·mp4 인코딩 없음)
+  python scripts/make_reel.py preview-text -o output/preview_subtitle.png --font /path/to/font.ttf
+
+  # 하단 고정 문구 위치: --footer-bottom-margin 140 (클수록 위로)
+
+  python scripts/make_reel.py list-voices
 """
 
 from __future__ import annotations
@@ -34,13 +35,41 @@ import argparse
 import sys
 from pathlib import Path
 
-# scripts/ 패키지 없이 실행되도록
 _SCRIPTS = Path(__file__).resolve().parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
-from reel_builder import BuildOptions, render_reel  # noqa: E402
+from reel_defaults import (
+    DEFAULT_FADE_SEC,
+    DEFAULT_FOOTER_BOTTOM_MARGIN,
+    DEFAULT_FOOTER_FONT_SIZE,
+    DEFAULT_FPS,
+    DEFAULT_HEIGHT,
+    DEFAULT_KEN_BURNS,
+    DEFAULT_MUSIC_VOLUME,
+    DEFAULT_PAD_SEC,
+    DEFAULT_SUBTITLE_BOTTOM_MARGIN,
+    DEFAULT_SUBTITLE_FONT_SIZE,
+    DEFAULT_SUBTITLE_FOOTER_GAP,
+    DEFAULT_SUBTITLE_MAX_CHARS,
+    DEFAULT_WIDTH,
+)
+from reel_brand import (
+    DEFAULT_BRAND_INTRO,
+    DEFAULT_BRAND_OUTRO,
+    DEFAULT_FOOTER_LINE1,
+    DEFAULT_FOOTER_LINE2,
+)
+from reel_builder import BuildOptions, render_reel, render_subtitle_preview_image  # noqa: E402
 from reel_common import images_sorted_from_dir  # noqa: E402
+from reel_progress import ProgressReporter  # noqa: E402
+from reel_fonts import resolve_font  # noqa: E402
+from reel_tts import DEFAULT_EDGE_VOICE, list_edge_voices_korean  # noqa: E402
+
+_DEFAULT_PREVIEW_TEXT = (
+    "전남 순천·여수·광양 현장에서 고소작업차 운전 및 조종을 맡을 때는 "
+    "안전한 위치 제어와 작업자와의 호흡이 가장 중요합니다."
+)
 
 
 def _collect_scene_image_paths(ns: argparse.Namespace) -> list[Path]:
@@ -54,12 +83,36 @@ def _collect_scene_image_paths(ns: argparse.Namespace) -> list[Path]:
     return []
 
 
+def cmd_list_voices(_: argparse.Namespace) -> None:
+    for v in list_edge_voices_korean():
+        print(
+            f"{v.get('ShortName', '')}\t{v.get('Gender', '')}\t{v.get('FriendlyName', '')}"
+        )
+
+
 def cmd_create(ns: argparse.Namespace) -> None:
-    script = ns.script
+    script: str | None = ns.script
+    script_src = "--script (인라인)"
     if ns.script_file:
-        script = Path(ns.script_file).read_text(encoding="utf-8")
+        sf = Path(ns.script_file).expanduser().resolve()
+        script = sf.read_text(encoding="utf-8")
+        script_src = str(sf)
+        if ns.script:
+            print(
+                "참고: --script 와 --script-file 을 같이 쓰면 파일 내용이 우선합니다.",
+                flush=True,
+            )
     if not script or not script.strip():
         raise SystemExit("--script 또는 --script-file 이 필요합니다.")
+
+    full = script.strip()
+    brand_note = ""
+    if not ns.no_brand:
+        brand_note = " | TTS에는 기본 인·아웃트로가 앞뒤로 붙습니다(--no-brand 로 끄기)"
+    print(f"TTS 대본: {script_src} ({len(full)}자){brand_note}", flush=True)
+    print("--- 본문 전체 ---", flush=True)
+    print(full, flush=True)
+    print("--- 본문 끝 ---", flush=True)
 
     scene_paths = _collect_scene_image_paths(ns)
     if scene_paths and ns.background_image:
@@ -81,6 +134,8 @@ def cmd_create(ns: argparse.Namespace) -> None:
     if ns.font:
         font = Path(ns.font).expanduser().resolve()
 
+    prog = ProgressReporter(enabled=not ns.no_progress)
+
     opts = BuildOptions(
         width=ns.width,
         height=ns.height,
@@ -90,17 +145,31 @@ def cmd_create(ns: argparse.Namespace) -> None:
         ken_burns=ns.ken_burns,
         music_path=music,
         music_volume=ns.music_volume,
-        subtitle=not ns.no_subtitle,
+        subtitle=ns.subtitle,
         font_path=font,
         subtitle_max_chars=ns.subtitle_chars,
+        subtitle_font_size=ns.subtitle_font_size,
+        tts_engine=ns.tts_engine,
+        tts_voice=ns.tts_voice,
+        tts_rate=ns.tts_rate,
         tts_lang=ns.tts_lang,
         tts_slow=ns.tts_slow,
+        progress=prog,
+        brand_wrap=not ns.no_brand,
+        brand_intro=DEFAULT_BRAND_INTRO if ns.intro is None else ns.intro,
+        brand_outro=DEFAULT_BRAND_OUTRO if ns.outro is None else ns.outro,
+        footer_overlay=not ns.no_footer,
+        footer_line1=DEFAULT_FOOTER_LINE1 if ns.footer_line1 is None else ns.footer_line1,
+        footer_line2=DEFAULT_FOOTER_LINE2 if ns.footer_line2 is None else ns.footer_line2,
+        footer_font_size=ns.footer_font_size,
+        footer_bottom_margin=ns.footer_bottom_margin,
+        subtitle_footer_gap=ns.subtitle_footer_gap,
+        subtitle_bottom_margin=ns.subtitle_bottom_margin,
     )
 
     out = Path(ns.output).expanduser().resolve()
     work = Path(ns.work_dir).expanduser().resolve() if ns.work_dir else None
 
-    print("TTS·영상 합성 중… (씬 수에 따라 수 분 걸릴 수 있습니다)", flush=True)
     result = render_reel(
         script=script,
         image_paths=scene_paths,
@@ -109,60 +178,268 @@ def cmd_create(ns: argparse.Namespace) -> None:
         work_dir=work,
         opts=opts,
     )
-    print(f"완료: {result}", flush=True)
+    if ns.no_progress:
+        print(f"완료: {result}", flush=True)
+
+
+def cmd_preview_text(ns: argparse.Namespace) -> None:
+    """TTS·영상 인코딩 없이 자막·푸터 합성만 PNG로 저장."""
+    font = resolve_font(Path(ns.font).expanduser().resolve() if ns.font else None)
+    out = Path(ns.output).expanduser().resolve()
+    suf = out.suffix.lower()
+    if suf and suf != ".png":
+        raise SystemExit("preview-text 는 PNG 저장만 지원합니다. --output 파일명을 .png 로 지정하세요.")
+    if not suf:
+        out = out.with_suffix(".png")
+
+    bg: Path | None = None
+    if ns.background_image:
+        bg = Path(ns.background_image).expanduser().resolve()
+        if not bg.is_file():
+            raise SystemExit(f"배경 이미지 없음: {bg}")
+
+    img = render_subtitle_preview_image(
+        width=ns.width,
+        height=ns.height,
+        font_path=font,
+        sample_subtitle=ns.sample_text,
+        subtitle_max_chars=ns.subtitle_chars,
+        subtitle_font_size=ns.subtitle_font_size,
+        show_subtitle=not ns.no_subtitle,
+        footer_overlay=not ns.no_footer,
+        footer_line1=DEFAULT_FOOTER_LINE1 if ns.footer_line1 is None else ns.footer_line1,
+        footer_line2=DEFAULT_FOOTER_LINE2 if ns.footer_line2 is None else ns.footer_line2,
+        footer_font_size=ns.footer_font_size,
+        footer_bottom_margin=ns.footer_bottom_margin,
+        subtitle_footer_gap=ns.subtitle_footer_gap,
+        subtitle_bottom_margin=ns.subtitle_bottom_margin,
+        background_image=bg,
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    img.save(str(out), format="PNG")
+    print(f"미리보기 저장: {out}", flush=True)
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="이미지+gTTS+자막 릴스 로컬 렌더 (HeyGen 대체)"
+        description="이미지+edge-tts 릴스 로컬 렌더 (기본 자막 없음)"
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
+    lv = sub.add_parser("list-voices", help="edge-tts 한국어 보이스 목록")
+    lv.set_defaults(func=cmd_list_voices)
+
     c = sub.add_parser("create", help="MP4 릴스 생성")
-    c.add_argument("--script", help="나레이션 전체 텍스트")
-    c.add_argument("--script-file", help="나레이션 텍스트 파일")
-    c.add_argument(
-        "--background-image",
-        help="배경 이미지 1장 (단일 씬). 여러 장은 --scene-dir",
-    )
+    c.add_argument("--script", help="나레이션 전체 텍스트 (--script-file 과 동시 지정 시 파일이 우선)")
+    c.add_argument("--script-file", help="나레이션 텍스트 파일 (--script 과 동시 지정 시 이쪽이 우선)")
+    c.add_argument("--background-image", help="배경 이미지 1장")
     c.add_argument(
         "--scene-dir",
-        help="폴더 안 jpg/png 를 파일명 순으로 사용. 스크립트는 --- 로 구간 수 맞추기",
+        help="폴더 안 jpg/png (파일명 순). 나레이션 한 블록이면 슬라이드쇼, --- 로 나누면 씬별 TTS",
     )
     c.add_argument(
         "--scene-image",
         action="append",
         dest="scene_images",
         metavar="PATH",
-        help="배경 이미지 경로 (여러 번, --scene-dir 보다 우선)",
+        help="배경 이미지 (--scene-dir 보다 우선)",
     )
     c.add_argument(
         "--music",
-        help="저작권 없는 배경음악 mp3 (나레이션보다 작게 믹스)",
+        metavar="PATH",
+        help="배경음 (mp3/wav 등). 나레이션보다 작게 믹스",
     )
-    c.add_argument("--music-volume", type=float, default=0.12, help="배경음 볼륨 0~1")
-    c.add_argument("--output", required=True, help="출력 mp4 경로")
     c.add_argument(
-        "--work-dir",
-        help="중간 파일(TTS mp3 등) 저장 폴더. 기본: 출력 옆 .work_<이름>",
-    )
-    c.add_argument("--width", type=int, default=1080)
-    c.add_argument("--height", type=int, default=1920)
-    c.add_argument("--fps", type=int, default=30)
-    c.add_argument("--fade", type=float, default=0.4, help="씬 전환 페이드(초)")
-    c.add_argument("--pad", type=float, default=0.35, help="씬 끝 여유(초)")
-    c.add_argument(
-        "--ken-burns",
+        "--music-volume",
         type=float,
-        default=0.04,
-        help="줌 인 강도 (0 이면 끔)",
+        default=DEFAULT_MUSIC_VOLUME,
+        help=f"배경음 볼륨 0~1 (기본 {DEFAULT_MUSIC_VOLUME}). 보이스 위주면 0.02~0.06 권장",
     )
-    c.add_argument("--no-subtitle", action="store_true", help="화면 자막 끄기")
-    c.add_argument("--subtitle-chars", type=int, default=16, help="자막 한 줄 최대 글자 수")
-    c.add_argument("--font", help="자막 폰트 .ttf/.ttc 경로")
-    c.add_argument("--tts-lang", default="ko", help="gTTS 언어 코드 (기본 ko)")
+    c.add_argument("--output", required=True, help="출력 mp4 경로")
+    c.add_argument("--work-dir", help="중간 파일 폴더")
+    c.add_argument("--width", type=int, default=DEFAULT_WIDTH)
+    c.add_argument("--height", type=int, default=DEFAULT_HEIGHT)
+    c.add_argument("--fps", type=int, default=DEFAULT_FPS)
+    c.add_argument("--fade", type=float, default=DEFAULT_FADE_SEC)
+    c.add_argument("--pad", type=float, default=DEFAULT_PAD_SEC)
+    c.add_argument("--ken-burns", type=float, default=DEFAULT_KEN_BURNS)
+    c.add_argument(
+        "--subtitle",
+        action="store_true",
+        help="화면 자막 켜기(슬라이드마다 나눔). --font 권장",
+    )
+    c.add_argument("--subtitle-chars", type=int, default=DEFAULT_SUBTITLE_MAX_CHARS)
+    c.add_argument("--subtitle-font-size", type=int, default=DEFAULT_SUBTITLE_FONT_SIZE)
+    c.add_argument(
+        "--font",
+        default=None,
+        help="한글 폰트 .ttf/.otf/.ttc (하단 고정 문구·자막, 생략 시 자동 탐색)",
+    )
+    c.add_argument(
+        "--tts-engine",
+        choices=("edge", "gtts"),
+        default="edge",
+        help="TTS 엔진 (기본 edge)",
+    )
+    c.add_argument(
+        "--tts-voice",
+        default=DEFAULT_EDGE_VOICE,
+        help=f"edge-tts 보이스 (기본 {DEFAULT_EDGE_VOICE})",
+    )
+    c.add_argument(
+        "--tts-rate",
+        default="+0%",
+        help="edge-tts 속도 (예: +10%%, -5%%)",
+    )
+    c.add_argument("--tts-lang", default="ko", help="gTTS 언어 (tts-engine=gtts 일 때)")
     c.add_argument("--tts-slow", action="store_true", help="gTTS 느린 발음")
+    c.add_argument(
+        "--no-brand",
+        action="store_true",
+        help="TTS 앞뒤 브랜드 문구(기본 인·아웃트로) 넣지 않기",
+    )
+    c.add_argument(
+        "--intro",
+        metavar="TEXT",
+        default=None,
+        help="앞 문구 (생략 시 reel_brand.py 기본 인트로)",
+    )
+    c.add_argument(
+        "--outro",
+        metavar="TEXT",
+        default=None,
+        help="뒤 문구 (기본: 저장소 기본 아웃트로)",
+    )
+    c.add_argument(
+        "--no-footer",
+        action="store_true",
+        help="하단 고정 문구(브랜드·문의) 끄기",
+    )
+    c.add_argument(
+        "--footer-line1",
+        metavar="TEXT",
+        default=None,
+        help=f"하단 첫 줄 (기본: {DEFAULT_FOOTER_LINE1})",
+    )
+    c.add_argument(
+        "--footer-line2",
+        metavar="TEXT",
+        default=None,
+        help=f"하단 둘째 줄 (기본: {DEFAULT_FOOTER_LINE2})",
+    )
+    c.add_argument(
+        "--footer-font-size",
+        type=int,
+        default=DEFAULT_FOOTER_FONT_SIZE,
+        help=f"하단 고정 문구 글자 크기 (기본 {DEFAULT_FOOTER_FONT_SIZE})",
+    )
+    c.add_argument(
+        "--footer-bottom-margin",
+        type=int,
+        default=DEFAULT_FOOTER_BOTTOM_MARGIN,
+        metavar="PX",
+        help=f"푸터 바를 화면 아래에서 몇 px 위에 둘지 (클수록 위로, 기본 {DEFAULT_FOOTER_BOTTOM_MARGIN})",
+    )
+    c.add_argument(
+        "--subtitle-footer-gap",
+        type=int,
+        default=DEFAULT_SUBTITLE_FOOTER_GAP,
+        metavar="PX",
+        help=f"푸터와 나레이션 자막 사이 간격 (--subtitle 일 때, 기본 {DEFAULT_SUBTITLE_FOOTER_GAP})",
+    )
+    c.add_argument(
+        "--subtitle-bottom-margin",
+        type=int,
+        default=DEFAULT_SUBTITLE_BOTTOM_MARGIN,
+        metavar="PX",
+        help=f"자막만 있을 때 화면 아래 여백 (기본 {DEFAULT_SUBTITLE_BOTTOM_MARGIN})",
+    )
+    c.add_argument(
+        "--no-progress",
+        action="store_true",
+        help="진행률 바(tqdm) 끄기",
+    )
     c.set_defaults(func=cmd_create)
+
+    pt = sub.add_parser(
+        "preview-text",
+        help="자막·푸터 레이아웃만 PNG로 빠르게 확인 (TTS·mp4 인코딩 없음)",
+    )
+    pt.add_argument("--output", "-o", required=True, help="출력 PNG 경로")
+    pt.add_argument(
+        "--sample-text",
+        default=_DEFAULT_PREVIEW_TEXT,
+        help="미리보기에 쓸 나레이션 샘플 문장",
+    )
+    pt.add_argument(
+        "--background-image",
+        metavar="PATH",
+        help="배경 사진 (없으면 단색 배경)",
+    )
+    pt.add_argument(
+        "--font",
+        default=None,
+        help="한글 폰트 (생략 시 자동 탐색, create 과 동일)",
+    )
+    pt.add_argument("--width", type=int, default=DEFAULT_WIDTH)
+    pt.add_argument("--height", type=int, default=DEFAULT_HEIGHT)
+    pt.add_argument("--subtitle-chars", type=int, default=DEFAULT_SUBTITLE_MAX_CHARS)
+    pt.add_argument(
+        "--subtitle-font-size",
+        type=int,
+        default=DEFAULT_SUBTITLE_FONT_SIZE,
+    )
+    pt.add_argument(
+        "--no-subtitle",
+        action="store_true",
+        help="나레이션 자막 블록만 끄고 푸터만 보기",
+    )
+    pt.add_argument(
+        "--no-footer",
+        action="store_true",
+        help="하단 고정 문구 끄고 자막만 보기",
+    )
+    pt.add_argument(
+        "--footer-line1",
+        metavar="TEXT",
+        default=None,
+        help=f"하단 첫 줄 (기본: {DEFAULT_FOOTER_LINE1})",
+    )
+    pt.add_argument(
+        "--footer-line2",
+        metavar="TEXT",
+        default=None,
+        help=f"하단 둘째 줄 (기본: {DEFAULT_FOOTER_LINE2})",
+    )
+    pt.add_argument(
+        "--footer-font-size",
+        type=int,
+        default=DEFAULT_FOOTER_FONT_SIZE,
+        help=f"하단 고정 문구 글자 크기 (기본 {DEFAULT_FOOTER_FONT_SIZE})",
+    )
+    pt.add_argument(
+        "--footer-bottom-margin",
+        type=int,
+        default=DEFAULT_FOOTER_BOTTOM_MARGIN,
+        metavar="PX",
+        help=f"푸터 바를 화면 아래에서 몇 px 위에 둘지 (기본 {DEFAULT_FOOTER_BOTTOM_MARGIN})",
+    )
+    pt.add_argument(
+        "--subtitle-footer-gap",
+        type=int,
+        default=DEFAULT_SUBTITLE_FOOTER_GAP,
+        metavar="PX",
+        help=f"푸터와 나레이션 자막 사이 간격 (기본 {DEFAULT_SUBTITLE_FOOTER_GAP})",
+    )
+    pt.add_argument(
+        "--subtitle-bottom-margin",
+        type=int,
+        default=DEFAULT_SUBTITLE_BOTTOM_MARGIN,
+        metavar="PX",
+        help=f"푸터 없을 때 자막 아래 여백 (기본 {DEFAULT_SUBTITLE_BOTTOM_MARGIN})",
+    )
+    pt.set_defaults(func=cmd_preview_text)
+
     return p
 
 

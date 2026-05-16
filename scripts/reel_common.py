@@ -16,6 +16,16 @@ def images_sorted_from_dir(directory: Path) -> list[Path]:
     return sorted(out, key=lambda x: x.name.lower())
 
 
+def script_segments_explicit(script: str) -> list[str]:
+    """--- 구분선으로 나눈 구간. 구분선 없으면 전체 1구간."""
+    text = script.strip()
+    if not text:
+        return []
+    parts = re.split(r"(?:\r?\n)\s*---\s*(?:\r?\n)", text)
+    segs = [p.strip() for p in parts if p.strip()]
+    return segs if segs else [text]
+
+
 def split_script_scenes(script: str, num_scenes: int) -> list[str]:
     """
     num_scenes == 1 이면 전체를 한 씬.
