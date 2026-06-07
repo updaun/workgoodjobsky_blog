@@ -55,10 +55,11 @@ from reel_defaults import (
     DEFAULT_WIDTH,
 )
 from reel_brand import (
-    DEFAULT_BRAND_INTRO,
-    DEFAULT_BRAND_OUTRO,
     DEFAULT_FOOTER_LINE1,
     DEFAULT_FOOTER_LINE2,
+    format_brand_catalog,
+    pick_brand_intro,
+    pick_brand_outro,
 )
 from reel_builder import BuildOptions, render_reel, render_subtitle_preview_image  # noqa: E402
 from reel_common import images_sorted_from_dir  # noqa: E402
@@ -136,6 +137,21 @@ def cmd_create(ns: argparse.Namespace) -> None:
 
     prog = ProgressReporter(enabled=not ns.no_progress)
 
+    out = Path(ns.output).expanduser().resolve()
+    brand_seed = out.stem
+    if ns.intro is not None:
+        brand_intro = ns.intro
+    else:
+        brand_intro = pick_brand_intro(brand_seed, index=ns.intro_variant)
+    if ns.outro is not None:
+        brand_outro = ns.outro
+    else:
+        brand_outro = pick_brand_outro(brand_seed, index=ns.outro_variant)
+
+    if not ns.no_brand:
+        print(f"🎙 인트로: {brand_intro}", flush=True)
+        print(f"🎙 아웃트로: {brand_outro}", flush=True)
+
     opts = BuildOptions(
         width=ns.width,
         height=ns.height,
@@ -156,8 +172,8 @@ def cmd_create(ns: argparse.Namespace) -> None:
         tts_slow=ns.tts_slow,
         progress=prog,
         brand_wrap=not ns.no_brand,
-        brand_intro=DEFAULT_BRAND_INTRO if ns.intro is None else ns.intro,
-        brand_outro=DEFAULT_BRAND_OUTRO if ns.outro is None else ns.outro,
+        brand_intro=brand_intro,
+        brand_outro=brand_outro,
         footer_overlay=not ns.no_footer,
         footer_line1=DEFAULT_FOOTER_LINE1 if ns.footer_line1 is None else ns.footer_line1,
         footer_line2=DEFAULT_FOOTER_LINE2 if ns.footer_line2 is None else ns.footer_line2,
@@ -167,7 +183,6 @@ def cmd_create(ns: argparse.Namespace) -> None:
         subtitle_bottom_margin=ns.subtitle_bottom_margin,
     )
 
-    out = Path(ns.output).expanduser().resolve()
     work = Path(ns.work_dir).expanduser().resolve() if ns.work_dir else None
 
     result = render_reel(
@@ -180,6 +195,10 @@ def cmd_create(ns: argparse.Namespace) -> None:
     )
     if ns.no_progress:
         print(f"완료: {result}", flush=True)
+
+
+def cmd_list_brand_lines(_ns: argparse.Namespace) -> None:
+    print(format_brand_catalog(), flush=True)
 
 
 def cmd_preview_text(ns: argparse.Namespace) -> None:
@@ -228,6 +247,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     lv = sub.add_parser("list-voices", help="edge-tts 한국어 보이스 목록")
     lv.set_defaults(func=cmd_list_voices)
+
+    lb = sub.add_parser("list-brand-lines", help="릴스 인·아웃트로 후보 목록")
+    lb.set_defaults(func=cmd_list_brand_lines)
 
     c = sub.add_parser("create", help="MP4 릴스 생성")
     c.add_argument("--script", help="나레이션 전체 텍스트 (--script-file 과 동시 지정 시 파일이 우선)")
@@ -302,13 +324,27 @@ def build_parser() -> argparse.ArgumentParser:
         "--intro",
         metavar="TEXT",
         default=None,
-        help="앞 문구 (생략 시 reel_brand.py 기본 인트로)",
+        help="앞 문구 (생략 시 출력 파일명 기준 자동 선택, 목록: list-brand-lines)",
+    )
+    c.add_argument(
+        "--intro-variant",
+        type=int,
+        default=None,
+        metavar="N",
+        help="인트로 후보 번호 (list-brand-lines 참고). --intro 보다 우선하지 않음",
     )
     c.add_argument(
         "--outro",
         metavar="TEXT",
         default=None,
-        help="뒤 문구 (기본: 저장소 기본 아웃트로)",
+        help="뒤 문구 (생략 시 출력 파일명 기준 자동 선택)",
+    )
+    c.add_argument(
+        "--outro-variant",
+        type=int,
+        default=None,
+        metavar="N",
+        help="아웃트로 후보 번호",
     )
     c.add_argument(
         "--no-footer",

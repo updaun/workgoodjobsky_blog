@@ -2,21 +2,69 @@
 
 from __future__ import annotations
 
-# AGENTS.md 마케팅 하네스(이득·소통·마무리) 기준. 필요 시 CLI --intro / --outro 로 덮어쓰기.
-DEFAULT_BRAND_INTRO = (
-    "일잘하는스카이입니다. "
-    "일을 잘한다는 건, 현장에서 소통이 잘 되는 거라고 생각합니다. "
-    "전남에서 고소작업차 조종으로, 노련하고 매끄럽게 작업을 완수합니다."
+# AGENTS.md 마케팅 하네스(이득·소통·마무리) 기준.
+# make_reel.py 는 출력 파일명 기준으로 아래 목록에서 자동 선택(매 영상 다른 인트로).
+# 고정 문구: --intro / --outro 또는 --intro-variant N
+
+BRAND_INTRO_VARIANTS: tuple[str, ...] = (
+    "일잘하는스카이입니다. 오늘 현장 영상입니다.",
+    "위치 맞춤부터 끝까지, 일잘하는스카이입니다.",
+    "현장 소통부터 맞춥니다. 일잘하는스카이입니다.",
+    "고소작업차 조종, 일잘하는스카이입니다.",
+    "맡기시면 편합니다. 일잘하는스카이입니다.",
+    "말 한마디가 작업 속도를 만듭니다. 일잘하는스카이입니다.",
+    "고소작업대, 조종이 편해야 합니다. 일잘하는스카이입니다.",
+    "오늘도 현장 맞춰 드립니다. 일잘하는스카이입니다.",
 )
 
-DEFAULT_BRAND_OUTRO = (
-    "소통이 맞아야 대기도 줄고, 마무리도 편합니다. "
-    "순천·여수·광양 일대 고소작업차 필요하시면, 일을 잘하는 일잘하는스카이로 연락 주세요."
+BRAND_OUTRO_VARIANTS: tuple[str, ...] = (
+    "고소작업차 필요하시면 일잘하는스카이로 편하게 연락 주세요.",
+    "순천·여수·광양, 전남 현장 맞춰 드립니다.",
+    "끝까지 맞춰 드리는 조종, 일잘하는스카이입니다.",
+    "현장 소통 잘 되는 조종으로 문의 주세요.",
+    "전남스카이·인접 권역, 편하게 연락 주세요.",
+    "오늘도 매끄럽게 마무리. 다음 현장도 일잘하는스카이입니다.",
 )
+
+# 하위 호환
+DEFAULT_BRAND_INTRO = BRAND_INTRO_VARIANTS[0]
+DEFAULT_BRAND_OUTRO = BRAND_OUTRO_VARIANTS[0]
 
 # 영상 하단 고정 오버레이 (전 구간 동일)
 DEFAULT_FOOTER_LINE1 = "일잘하는스카이"
 DEFAULT_FOOTER_LINE2 = "문의 010-6575-5112"
+
+
+def _pick_variant(variants: tuple[str, ...], seed: str | None, index: int | None) -> str:
+    if index is not None:
+        if not 0 <= index < len(variants):
+            raise IndexError(f"variant index는 0~{len(variants) - 1} 입니다 (받음: {index})")
+        return variants[index]
+    if not seed:
+        return variants[0]
+    idx = sum(ord(c) for c in seed) % len(variants)
+    return variants[idx]
+
+
+def pick_brand_intro(seed: str | None = None, *, index: int | None = None) -> str:
+    return _pick_variant(BRAND_INTRO_VARIANTS, seed, index)
+
+
+def pick_brand_outro(seed: str | None = None, *, index: int | None = None) -> str:
+    return _pick_variant(BRAND_OUTRO_VARIANTS, seed, index)
+
+
+def format_brand_catalog() -> str:
+    lines = ["=== 인트로 (--intro-variant N) ==="]
+    for i, text in enumerate(BRAND_INTRO_VARIANTS):
+        lines.append(f"  [{i}] {text}")
+    lines.append("")
+    lines.append("=== 아웃트로 (--outro-variant N) ===")
+    for i, text in enumerate(BRAND_OUTRO_VARIANTS):
+        lines.append(f"  [{i}] {text}")
+    lines.append("")
+    lines.append("미지정 시 --output 파일명으로 자동 선택됩니다.")
+    return "\n".join(lines)
 
 
 def apply_brand_to_segments(
