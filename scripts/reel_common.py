@@ -1,4 +1,4 @@
-"""릴스 스크립트·이미지 경로 공통 유틸 (HeyGen / 로컬 렌더 공용)."""
+"""릴스 스크립트,이미지 경로 공통 유틸 (HeyGen / 로컬 렌더 공용)."""
 
 from __future__ import annotations
 

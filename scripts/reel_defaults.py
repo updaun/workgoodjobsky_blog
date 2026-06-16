@@ -5,7 +5,7 @@ CLI(`make_reel.py`)와 `BuildOptions`(`reel_builder.py`)에서 같은 상수를 
 기본값을 바꿀 때는 이 파일만 수정하면 됩니다.
 """
 
-# --- 해상도·영상 ---
+# --- 해상도,영상 ---
 DEFAULT_WIDTH = 1080
 DEFAULT_HEIGHT = 1920
 DEFAULT_FPS = 30
@@ -21,7 +21,7 @@ DEFAULT_MUSIC_VOLUME = 0.045
 DEFAULT_SUBTITLE_MAX_CHARS = 10
 DEFAULT_SUBTITLE_FONT_SIZE = 100
 
-# --- 하단 고정 푸터 (브랜드·문의, 기본 항상 표시) ---
+# --- 하단 고정 푸터 (브랜드,문의, 기본 항상 표시) ---
 # 나레이션 자막과 별개. "자막"이 안 커 보이면 대부분 이 블록 크기.
 DEFAULT_FOOTER_FONT_SIZE = 78
 

@@ -96,7 +96,7 @@ def format_client_error(e: ClientError) -> str:
 
 
 def verify_r2_access(client, bucket: str, key_prefix: str) -> Optional[str]:
-    """업로드 전 R2 연결·권한 확인. 문제 있으면 안내 메시지 반환."""
+    """업로드 전 R2 연결,권한 확인. 문제 있으면 안내 메시지 반환."""
     test_key = f"{key_prefix.strip('/')}/.connection_test"
     try:
         client.put_object(
@@ -119,7 +119,7 @@ def verify_r2_access(client, bucket: str, key_prefix: str) -> Optional[str]:
             "   - 범위: 해당 버킷(또는 전체 R2)\n"
             "3. .env 의 CF_R2_ACCOUNT_ID / ACCESS_KEY / SECRET / BUCKET 갱신\n"
             "4. (선택) Public bucket URL → CF_R2_PUBLIC_URL\n\n"
-            "다른 블로그용 토큰·버킷을 그대로 썼다면, 일잘하는스카이용 버킷/토큰인지 확인하세요."
+            "다른 블로그용 토큰,버킷을 그대로 썼다면, 일잘하는스카이용 버킷/토큰인지 확인하세요."
         )
 
 
@@ -424,7 +424,7 @@ def build_parser() -> argparse.ArgumentParser:
     sync.add_argument("--manifest-path", default="output/gallery/manifest.json")
     sync.set_defaults(func=cmd_sync)
 
-    verify = sub.add_parser("verify", help="R2 연결·업로드 권한만 확인")
+    verify = sub.add_parser("verify", help="R2 연결,업로드 권한만 확인")
     verify.add_argument("--bucket", default="")
     verify.add_argument("--key-prefix", default="gallery")
     verify.set_defaults(func=cmd_verify)

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-비용 없이 이미지 + edge-tts 나레이션 + (선택) 자막·배경음악으로 릴스 MP4를 만듭니다.
+비용 없이 이미지 + edge-tts 나레이션 + (선택) 자막,배경음악으로 릴스 MP4를 만듭니다.
 기본은 자막 없음(슬라이드 + 보이스만).
 
-필요: Python 3.10+, ffmpeg, 한글 폰트 권장(하단 고정 문구·자막에 사용).
-숫자·해상도 기본값은 `scripts/reel_defaults.py` 에서 한 번에 바꿀 수 있습니다.
+필요: Python 3.10+, ffmpeg, 한글 폰트 권장(하단 고정 문구,자막에 사용).
+숫자,해상도 기본값은 `scripts/reel_defaults.py` 에서 한 번에 바꿀 수 있습니다.
 
 설치:
   pip install -r scripts/requirements-reel.txt
@@ -21,7 +21,7 @@
   # 자막 켜기
   python scripts/make_reel.py create ... --subtitle --font /path/to/NanumGothic.ttf
 
-  # 자막·푸터만 빠르게 PNG 확인 (TTS·mp4 인코딩 없음)
+  # 자막,푸터만 빠르게 PNG 확인 (TTS,mp4 인코딩 없음)
   python scripts/make_reel.py preview-text -o output/preview_subtitle.png --font /path/to/font.ttf
 
   # 하단 고정 문구 위치: --footer-bottom-margin 140 (클수록 위로)
@@ -68,7 +68,7 @@ from reel_fonts import resolve_font  # noqa: E402
 from reel_tts import DEFAULT_EDGE_VOICE, list_edge_voices_korean  # noqa: E402
 
 _DEFAULT_PREVIEW_TEXT = (
-    "전남 순천·여수·광양 현장에서 고소작업차 운전 및 조종을 맡을 때는 "
+    "전남 순천,여수,광양 현장에서 고소작업차 운전 및 조종을 맡을 때는 "
     "안전한 위치 제어와 작업자와의 호흡이 가장 중요합니다."
 )
 
@@ -109,7 +109,7 @@ def cmd_create(ns: argparse.Namespace) -> None:
     full = script.strip()
     brand_note = ""
     if not ns.no_brand:
-        brand_note = " | TTS에는 기본 인·아웃트로가 앞뒤로 붙습니다(--no-brand 로 끄기)"
+        brand_note = " | TTS에는 기본 인,아웃트로가 앞뒤로 붙습니다(--no-brand 로 끄기)"
     print(f"TTS 대본: {script_src} ({len(full)}자){brand_note}", flush=True)
     print("--- 본문 전체 ---", flush=True)
     print(full, flush=True)
@@ -202,7 +202,7 @@ def cmd_list_brand_lines(_ns: argparse.Namespace) -> None:
 
 
 def cmd_preview_text(ns: argparse.Namespace) -> None:
-    """TTS·영상 인코딩 없이 자막·푸터 합성만 PNG로 저장."""
+    """TTS,영상 인코딩 없이 자막,푸터 합성만 PNG로 저장."""
     font = resolve_font(Path(ns.font).expanduser().resolve() if ns.font else None)
     out = Path(ns.output).expanduser().resolve()
     suf = out.suffix.lower()
@@ -248,7 +248,7 @@ def build_parser() -> argparse.ArgumentParser:
     lv = sub.add_parser("list-voices", help="edge-tts 한국어 보이스 목록")
     lv.set_defaults(func=cmd_list_voices)
 
-    lb = sub.add_parser("list-brand-lines", help="릴스 인·아웃트로 후보 목록")
+    lb = sub.add_parser("list-brand-lines", help="릴스 인,아웃트로 후보 목록")
     lb.set_defaults(func=cmd_list_brand_lines)
 
     c = sub.add_parser("create", help="MP4 릴스 생성")
@@ -295,7 +295,7 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument(
         "--font",
         default=None,
-        help="한글 폰트 .ttf/.otf/.ttc (하단 고정 문구·자막, 생략 시 자동 탐색)",
+        help="한글 폰트 .ttf/.otf/.ttc (하단 고정 문구,자막, 생략 시 자동 탐색)",
     )
     c.add_argument(
         "--tts-engine",
@@ -318,7 +318,7 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument(
         "--no-brand",
         action="store_true",
-        help="TTS 앞뒤 브랜드 문구(기본 인·아웃트로) 넣지 않기",
+        help="TTS 앞뒤 브랜드 문구(기본 인,아웃트로) 넣지 않기",
     )
     c.add_argument(
         "--intro",
@@ -349,7 +349,7 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument(
         "--no-footer",
         action="store_true",
-        help="하단 고정 문구(브랜드·문의) 끄기",
+        help="하단 고정 문구(브랜드,문의) 끄기",
     )
     c.add_argument(
         "--footer-line1",
@@ -399,7 +399,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     pt = sub.add_parser(
         "preview-text",
-        help="자막·푸터 레이아웃만 PNG로 빠르게 확인 (TTS·mp4 인코딩 없음)",
+        help="자막,푸터 레이아웃만 PNG로 빠르게 확인 (TTS,mp4 인코딩 없음)",
     )
     pt.add_argument("--output", "-o", required=True, help="출력 PNG 경로")
     pt.add_argument(

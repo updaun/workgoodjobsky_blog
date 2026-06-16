@@ -24,7 +24,7 @@ HeyGen API로 이미지(토킹 포토) + AI 보이스(TTS) 기반 세로형(릴�
     --script-file ./reel.txt --voice-id <voice_id> \\
     --scene-dir ./data/260513_순천만
 
-문서: https://docs.heygen.com/ (v2 업로드·포토 아바타·/v2/video/generate)
+문서: https://docs.heygen.com/ (v2 업로드,포토 아바타,/v2/video/generate)
 """
 
 from __future__ import annotations
@@ -375,7 +375,7 @@ def cmd_create_reel(ns: argparse.Namespace) -> None:
         )
 
     if scene_paths:
-        print(f"배경 이미지 {len(scene_paths)}장 업로드·씬 구성 중…", flush=True)
+        print(f"배경 이미지 {len(scene_paths)}장 업로드,씬 구성 중…", flush=True)
         try:
             segments = _split_script_scenes(script, len(scene_paths))
         except ValueError as e:

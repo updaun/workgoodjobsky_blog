@@ -1,5 +1,5 @@
 """
-이미지 + edge-tts 나레이션 + (선택) 자막·배경음악으로 세로형 릴스 MP4를 만듭니다.
+이미지 + edge-tts 나레이션 + (선택) 자막,배경음악으로 세로형 릴스 MP4를 만듭니다.
 기본은 자막 없음(슬라이드 + 보이스만 권장).
 """
 
@@ -153,7 +153,7 @@ def _wrap_subtitle(text: str, max_chars: int) -> list[str]:
             lines.append(rest)
             break
         chunk = rest[: max_chars + 1]
-        # 공백·쉼표·마침표 근처에서 끊기
+        # 공백,쉼표,마침표 근처에서 끊기
         break_at = -1
         for sep in (" ", ",", ".", "。", "!", "?"):
             pos = chunk.rfind(sep, 0, max_chars)
@@ -201,7 +201,7 @@ def render_footer_png(
     font_path: Path,
     font_size: int = DEFAULT_FOOTER_FONT_SIZE,
 ) -> np.ndarray:
-    """하단 고정 연락·브랜드 바."""
+    """하단 고정 연락,브랜드 바."""
     line_h = int(font_size * 1.28)
     bar_h = line_h * len(lines) + 36
     img = Image.new("RGBA", (width, bar_h), (0, 0, 0, 0))
@@ -250,7 +250,7 @@ def render_subtitle_preview_image(
     background_image: Path | None = None,
 ) -> Image.Image:
     """
-    TTS·인코딩 없이 자막·푸터만 PNG로 빠르게 확인 (실제 렌더와 동일 배치·스케일).
+    TTS,인코딩 없이 자막,푸터만 PNG로 빠르게 확인 (실제 렌더와 동일 배치,스케일).
     """
     if background_image and background_image.is_file():
         frame_rgb = cover_fit_image(background_image, width, height)
@@ -442,7 +442,7 @@ def _merge_chunks_to_n(chunks: list[str], n: int) -> list[str]:
 
 
 def _split_longest_for_more_bins(cur: list[str]) -> None:
-    """가장 긴 한 덩어리를 공백·중간에서 둘로 나눠 길이를 줄인다."""
+    """가장 긴 한 덩어리를 공백,중간에서 둘로 나눠 길이를 줄인다."""
     idx = max(range(len(cur)), key=lambda i: len(cur[i]))
     s = cur[idx]
     if len(s) < 6:
@@ -462,7 +462,7 @@ def _split_longest_for_more_bins(cur: list[str]) -> None:
 def split_narration_for_slides(text: str, n: int) -> list[str]:
     """
     한 덩어리 나레이션을 슬라이드 n장에 맞게 나눈다.
-    문장·쉼표 경계를 우선하고, 구절이 많으면 짧은 것끼리 합친다.
+    문장,쉼표 경계를 우선하고, 구절이 많으면 짧은 것끼리 합친다.
     """
     if n < 1:
         raise ValueError("n >= 1")
@@ -500,7 +500,7 @@ def build_slideshow_scenes(
     work_dir.mkdir(parents=True, exist_ok=True)
     audio_path = work_dir / "narration.mp3"
     if opts.progress:
-        opts.progress.begin_stage(0, f"나레이션 1개 · 사진 {len(image_paths)}장")
+        opts.progress.begin_stage(0, f"나레이션 1개 , 사진 {len(image_paths)}장")
     synthesize(
         text,
         audio_path,

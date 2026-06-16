@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""data/ 현장 사진 폴더 파싱·정리·갤러리 manifest 생성."""
+"""data/ 현장 사진 폴더 파싱,정리,갤러리 manifest 생성."""
 
 from __future__ import annotations
 
