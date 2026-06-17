@@ -6,3 +6,4 @@ music
 .env
 output/
 scripts/.work_*/
+backup/
